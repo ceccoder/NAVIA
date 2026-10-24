@@ -1,0 +1,48 @@
+name: Build NAVIA APK and Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Scaffold platform files & dependencies
+        working-directory: mobile
+        run: |
+          flutter create . --platforms=android
+          flutter pub get
+
+      - name: Build Release APK
+        working-directory: mobile
+        run: |
+          flutter build apk --release --dart-define=NAVIA_API_URL=${{ secrets.NAVIA_PROD_API_URL || 'https://navia-backend.onrender.com' }}
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: navia-accessible-navigation-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
