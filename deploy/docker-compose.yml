@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  navia-backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: navia-backend-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - PORT=8000
+      - WORKERS=2
+      - CORS_ORIGINS=*
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 128M
+    networks:
+      - navia-network
+
+networks:
+  navia-network:
+    driver: bridge

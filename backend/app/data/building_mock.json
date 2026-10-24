@@ -1,0 +1,265 @@
+{
+  "building_id": "campus_med_center",
+  "name": "St. Jude Campus Medical & Research Center",
+  "version": "1.0.0",
+  "floors": [1, 2],
+  "nodes": [
+    {
+      "id": "L1_ENTRANCE",
+      "label": "Main Entrance",
+      "floor": 1,
+      "x": 0.0,
+      "y": 0.0,
+      "type": "entrance",
+      "signs": ["MAIN ENTRANCE", "ENTRANCE", "LOBBY ENTRY"]
+    },
+    {
+      "id": "L1_LOBBY",
+      "label": "Lobby Information Desk",
+      "floor": 1,
+      "x": 10.0,
+      "y": 0.0,
+      "type": "lobby",
+      "signs": ["INFO DESK", "RECEPTION", "LOBBY", "INFORMATION"]
+    },
+    {
+      "id": "L1_RESTROOM",
+      "label": "Level 1 Accessible Restroom",
+      "floor": 1,
+      "x": 10.0,
+      "y": -8.0,
+      "type": "restroom",
+      "signs": ["RESTROOM", "TOILET", "ACCESSIBLE RESTROOM", "WC"]
+    },
+    {
+      "id": "L1_CORR_E",
+      "label": "East Corridor Level 1",
+      "floor": 1,
+      "x": 20.0,
+      "y": 0.0,
+      "type": "corridor",
+      "signs": ["EAST WING", "ROOMS 101-102", "CLINIC CORRIDOR"]
+    },
+    {
+      "id": "L1_ROOM_101",
+      "label": "Room 101 - Patient Registration",
+      "floor": 1,
+      "x": 20.0,
+      "y": 8.0,
+      "type": "room",
+      "signs": ["ROOM 101", "101", "PATIENT REGISTRATION", "REGISTRATION"]
+    },
+    {
+      "id": "L1_ROOM_102",
+      "label": "Room 102 - Pharmacy",
+      "floor": 1,
+      "x": 20.0,
+      "y": -8.0,
+      "type": "room",
+      "signs": ["ROOM 102", "102", "PHARMACY", "DISPENSARY"]
+    },
+    {
+      "id": "L1_ELEVATOR",
+      "label": "Elevator Bank Level 1",
+      "floor": 1,
+      "x": 10.0,
+      "y": -16.0,
+      "type": "elevator",
+      "signs": ["ELEVATOR", "LIFT", "ELEVATOR 1", "ACCESSIBLE LIFT"]
+    },
+    {
+      "id": "L1_STAIRS",
+      "label": "North Stairwell Level 1",
+      "floor": 1,
+      "x": 10.0,
+      "y": 16.0,
+      "type": "stairs",
+      "signs": ["STAIRS", "STAIRWELL", "STAIRS LEVEL 1", "EMERGENCY STAIRS"]
+    },
+    {
+      "id": "L2_ELEVATOR",
+      "label": "Elevator Bank Level 2",
+      "floor": 2,
+      "x": 10.0,
+      "y": -16.0,
+      "type": "elevator",
+      "signs": ["ELEVATOR", "LIFT", "ELEVATOR 2", "LOBBY LIFT"]
+    },
+    {
+      "id": "L2_STAIRS",
+      "label": "North Stairwell Level 2",
+      "floor": 2,
+      "x": 10.0,
+      "y": 16.0,
+      "type": "stairs",
+      "signs": ["STAIRS", "STAIRWELL", "STAIRS LEVEL 2"]
+    },
+    {
+      "id": "L2_LOBBY",
+      "label": "Level 2 Central Hall",
+      "floor": 2,
+      "x": 10.0,
+      "y": 0.0,
+      "type": "lobby",
+      "signs": ["LEVEL 2 CENTRAL", "UPPER ATRIUM", "LEVEL 2"]
+    },
+    {
+      "id": "L2_CORR_E",
+      "label": "East Corridor Level 2",
+      "floor": 2,
+      "x": 20.0,
+      "y": 0.0,
+      "type": "corridor",
+      "signs": ["RADIOLOGY WING", "ROOMS 214-215"]
+    },
+    {
+      "id": "L2_ROOM_214",
+      "label": "Room 214 - Radiology Lab",
+      "floor": 2,
+      "x": 20.0,
+      "y": 8.0,
+      "type": "room",
+      "signs": ["ROOM 214", "214", "RADIOLOGY", "X-RAY & MRI"]
+    },
+    {
+      "id": "L2_ROOM_215",
+      "label": "Room 215 - Doctor's Lounge",
+      "floor": 2,
+      "x": 30.0,
+      "y": 8.0,
+      "type": "room",
+      "signs": ["ROOM 215", "215", "STAFF ONLY", "DOCTORS LOUNGE"]
+    },
+    {
+      "id": "L2_ROOM_201",
+      "label": "Room 201 - Cardiology Consultation",
+      "floor": 2,
+      "x": 10.0,
+      "y": 25.0,
+      "type": "room",
+      "signs": ["ROOM 201", "201", "CARDIOLOGY", "HEART CLINIC"]
+    }
+  ],
+  "edges": [
+    {
+      "source": "L1_ENTRANCE",
+      "target": "L1_LOBBY",
+      "distance_meters": 10.0,
+      "has_stairs": false,
+      "width_meters": 2.4,
+      "door_type": "automatic"
+    },
+    {
+      "source": "L1_LOBBY",
+      "target": "L1_RESTROOM",
+      "distance_meters": 8.0,
+      "has_stairs": false,
+      "width_meters": 1.5,
+      "door_type": "manual"
+    },
+    {
+      "source": "L1_LOBBY",
+      "target": "L1_CORR_E",
+      "distance_meters": 10.0,
+      "has_stairs": false,
+      "width_meters": 2.0,
+      "door_type": "open"
+    },
+    {
+      "source": "L1_CORR_E",
+      "target": "L1_ROOM_101",
+      "distance_meters": 8.0,
+      "has_stairs": false,
+      "width_meters": 1.2,
+      "door_type": "manual"
+    },
+    {
+      "source": "L1_CORR_E",
+      "target": "L1_ROOM_102",
+      "distance_meters": 8.0,
+      "has_stairs": false,
+      "width_meters": 1.2,
+      "door_type": "manual"
+    },
+    {
+      "source": "L1_LOBBY",
+      "target": "L1_ELEVATOR",
+      "distance_meters": 16.0,
+      "has_stairs": false,
+      "width_meters": 2.0,
+      "door_type": "automatic"
+    },
+    {
+      "source": "L1_LOBBY",
+      "target": "L1_STAIRS",
+      "distance_meters": 16.0,
+      "has_stairs": false,
+      "width_meters": 1.8,
+      "door_type": "manual"
+    },
+    {
+      "source": "L1_STAIRS",
+      "target": "L2_STAIRS",
+      "distance_meters": 10.0,
+      "has_stairs": true,
+      "width_meters": 1.5,
+      "door_type": "manual"
+    },
+    {
+      "source": "L1_ELEVATOR",
+      "target": "L2_ELEVATOR",
+      "distance_meters": 4.0,
+      "has_stairs": false,
+      "width_meters": 1.8,
+      "door_type": "automatic"
+    },
+    {
+      "source": "L2_ELEVATOR",
+      "target": "L2_LOBBY",
+      "distance_meters": 16.0,
+      "has_stairs": false,
+      "width_meters": 2.0,
+      "door_type": "automatic"
+    },
+    {
+      "source": "L2_STAIRS",
+      "target": "L2_LOBBY",
+      "distance_meters": 16.0,
+      "has_stairs": false,
+      "width_meters": 1.8,
+      "door_type": "manual"
+    },
+    {
+      "source": "L2_LOBBY",
+      "target": "L2_CORR_E",
+      "distance_meters": 10.0,
+      "has_stairs": false,
+      "width_meters": 2.0,
+      "door_type": "open"
+    },
+    {
+      "source": "L2_CORR_E",
+      "target": "L2_ROOM_214",
+      "distance_meters": 8.0,
+      "has_stairs": false,
+      "width_meters": 1.2,
+      "door_type": "manual"
+    },
+    {
+      "source": "L2_ROOM_214",
+      "target": "L2_ROOM_215",
+      "distance_meters": 10.0,
+      "has_stairs": false,
+      "width_meters": 0.75,
+      "door_type": "manual"
+    },
+    {
+      "source": "L2_LOBBY",
+      "target": "L2_ROOM_201",
+      "distance_meters": 25.0,
+      "has_stairs": false,
+      "width_meters": 1.8,
+      "door_type": "manual"
+    }
+  ]
+}

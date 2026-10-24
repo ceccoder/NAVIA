@@ -1,0 +1,36 @@
+name: navia_mobile
+description: "NAVIA - Accessible Indoor Navigation App with BLE Haptics, Camera OCR, and Speech Guidance"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # BLE communication with ESP32-C3 wearable
+  flutter_blue_plus: ^1.34.5
+
+  # Computer Vision & OCR sign recognition
+  google_mlkit_text_recognition: ^0.13.0
+  camera: ^0.11.0+2
+
+  # Voice guidance
+  flutter_tts: ^4.1.0
+
+  # Backend REST communication
+  http: ^1.2.2
+
+  # Device runtime permissions
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

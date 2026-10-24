@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: navia-backend
+    env: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: PORT
+        value: 8000
+      - key: WORKERS
+        value: 2
