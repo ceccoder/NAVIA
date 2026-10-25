@@ -28,11 +28,12 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Scaffold platform files & dependencies
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
         working-directory: mobile
-        run: |
-          flutter create . --platforms=android
-          flutter pub get
+        run: flutter pub get
 
       - name: Build Release APK
         working-directory: mobile
@@ -45,4 +46,3 @@ jobs:
           name: navia-accessible-navigation-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
-
