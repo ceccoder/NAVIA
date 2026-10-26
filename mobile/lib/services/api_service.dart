@@ -84,12 +84,12 @@ class ApiService {
     final viaElevator = isWheelchair || request.userProfile.avoidStairs;
 
     return RouteResponse(
-      building_id: request.buildingId,
-      start_node_id: request.startNodeId,
-      destination_node_id: 'L2_ROOM_214',
-      destination_label: request.destinationLabel,
-      total_distance_meters: viaElevator ? 44.0 : 42.0,
-      estimated_time_seconds: 44,
+      buildingId: request.buildingId,
+      startNodeId: request.startNodeId,
+      destinationNodeId: 'L2_ROOM_214',
+      destinationLabel: request.destinationLabel,
+      totalDistanceMeters: viaElevator ? 44.0 : 42.0,
+      estimatedTimeSeconds: 44,
       accessible: true,
       routeNodes: viaElevator
           ? ['L1_ENTRANCE', 'L1_LOBBY', 'L1_ELEVATOR', 'L2_ELEVATOR', 'L2_LOBBY', 'L2_ROOM_214']
