@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/navigation_models.dart';
 import '../services/api_service.dart';
@@ -80,6 +81,12 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
 
   Future<void> _initializeCamera() async {
     try {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        debugPrint('[CAMERA] Camera permission denied by user');
+        return;
+      }
+
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         debugPrint('[CAMERA] No physical cameras detected (emulator mode)');
