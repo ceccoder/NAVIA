@@ -19,25 +19,35 @@ allprojects {
 }
 
 subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+
+subprojects {
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             def android = project.android
+            if (android.hasProperty('compileSdk')) {
+                android.compileSdk = 34
+            }
             android.compileSdkVersion 34
 
             if (android.defaultConfig != null) {
+                if (android.defaultConfig.hasProperty('minSdk')) {
+                    android.defaultConfig.minSdk = 23
+                }
                 android.defaultConfig.minSdkVersion 23
+
+                if (android.defaultConfig.hasProperty('targetSdk')) {
+                    android.defaultConfig.targetSdk = 34
+                }
                 android.defaultConfig.targetSdkVersion 34
             }
         }
     }
-}
-
-rootProject.buildDir = '../build'
-subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
-    project.evaluationDependsOn(':app')
 }
 
 tasks.register("clean", Delete) {

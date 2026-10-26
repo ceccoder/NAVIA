@@ -30,6 +30,7 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
     namespace "com.navia.accessible_navigation"
+    compileSdk 34
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
