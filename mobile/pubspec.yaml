@@ -18,8 +18,8 @@ dependencies:
   google_mlkit_text_recognition: ^0.13.0
   camera: ^0.11.0+2
 
-  # Voice guidance
-  flutter_tts: ^4.1.0
+  # Voice guidance (pinned to stable version to prevent breaking changes in 4.2.x)
+  flutter_tts: 3.8.5
 
   # Backend REST communication
   http: ^1.2.2
