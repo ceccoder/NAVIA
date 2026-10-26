@@ -16,6 +16,19 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    subprojects {
+        afterEvaluate { project ->
+            if (project.hasProperty('android')) {
+                project.android.compileSdkVersion 34
+
+                if (project.android.defaultConfig != null) {
+                    project.android.defaultConfig.minSdkVersion 23
+                    project.android.defaultConfig.targetSdkVersion 34
+                }
+            }
+        }
+    }
 }
 
 rootProject.buildDir = '../build'
