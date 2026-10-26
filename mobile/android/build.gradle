@@ -16,16 +16,17 @@ allprojects {
         google()
         mavenCentral()
     }
+}
 
-    subprojects {
-        afterEvaluate { project ->
-            if (project.hasProperty('android')) {
-                project.android.compileSdkVersion 34
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            def android = project.android
+            android.compileSdkVersion 34
 
-                if (project.android.defaultConfig != null) {
-                    project.android.defaultConfig.minSdkVersion 23
-                    project.android.defaultConfig.targetSdkVersion 34
-                }
+            if (android.defaultConfig != null) {
+                android.defaultConfig.minSdkVersion 23
+                android.defaultConfig.targetSdkVersion 34
             }
         }
     }
