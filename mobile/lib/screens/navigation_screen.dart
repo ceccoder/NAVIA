@@ -395,7 +395,7 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
     _cameraController?.dispose();
     _textRecognizer.close();
     _hazardSubscription?.cancel();
-    _tts.dispose();
+    _tts.stop();
     super.dispose();
   }
 
