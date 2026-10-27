@@ -6,10 +6,10 @@ import '../models/navigation_models.dart';
 
 /// Service managing communication with the NAVIA FastAPI graph routing server.
 class ApiService {
-  // Configurable backend base URL (default: Android emulator 10.0.2.2:8000; override with --dart-define=NAVIA_API_URL=...)
+  // Configurable backend base URL (points to your live Render backend)
   static String baseUrl = const String.fromEnvironment(
     'NAVIA_API_URL',
-    defaultValue: 'http://10.0.2.2:8000',
+    defaultValue: 'https://navia-ritk.onrender.com',
   );
 
   static void setBaseUrl(String url) {

@@ -27,6 +27,9 @@ dependencies:
   # Device runtime permissions
   permission_handler: ^11.3.1
 
+  # Launch OTA update downloads in browser
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

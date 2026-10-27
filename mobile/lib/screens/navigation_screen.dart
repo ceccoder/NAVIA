@@ -9,11 +9,13 @@ import '../models/navigation_models.dart';
 import '../services/api_service.dart';
 import '../services/ble_service.dart';
 import '../services/tts_service.dart';
+import '../services/update_service.dart';
 import '../widgets/camera_ocr_overlay.dart';
 import '../widgets/direction_hud.dart';
 import 'ble_setup_screen.dart';
 
-/// Core Navigation Screen integrating Camera OCR, TTS Voice Guidance, and BLE Haptics
+/// Next-Generation Accessible Indoor Navigation Screen
+/// Integrates Camera OCR, TTS Guidance, BLE Wearable Haptics, and In-App Updates.
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key});
 
@@ -42,6 +44,7 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
   String _currentStartAnchor = 'L1_ENTRANCE';
   bool _isWheelchairUser = false;
   List<NavNode> _availableNodes = [];
+  bool _isServerOnline = false;
 
   // Subscriptions
   StreamSubscription<String>? _hazardSubscription;
@@ -52,6 +55,24 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     _initializeServices();
     _loadDestinationNodes();
+    _checkServerStatus();
+    _checkForAppUpdates();
+  }
+
+  Future<void> _checkServerStatus() async {
+    final healthy = await ApiService.checkHealth();
+    if (mounted) {
+      setState(() {
+        _isServerOnline = healthy;
+      });
+    }
+  }
+
+  Future<void> _checkForAppUpdates() async {
+    final release = await UpdateService.checkForUpdate();
+    if (release != null && mounted) {
+      UpdateService.showUpdateDialog(context, release);
+    }
   }
 
   Future<void> _initializeServices() async {
@@ -75,6 +96,9 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
     if (mounted) {
       setState(() {
         _availableNodes = nodes;
+        if (nodes.isNotEmpty && !nodes.any((n) => n.label == _selectedDestination)) {
+          _selectedDestination = nodes.first.label;
+        }
       });
     }
   }
@@ -122,7 +146,6 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
 
   /// Processes streaming camera frames for real-time sign recognition
   void _processCameraFrameForOcr(CameraImage image) async {
-    // Throttle OCR to run at ~2 FPS to prevent thermal throttling and maintain 60fps UI
     final now = DateTime.now();
     if (now.difference(_lastOcrScanTime).inMilliseconds < 600 || _isProcessingOcrFrame) {
       return;
@@ -135,14 +158,13 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
       final inputImage = _inputImageFromCameraImage(image);
       if (inputImage == null) return;
 
-      final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
+      final recognizedText = await _textRecognizer.processImage(inputImage);
 
       for (final block in recognizedText.blocks) {
         final text = block.text.trim().toUpperCase();
 
-        // Check if detected text matches any known room or corridor landmark
         for (final node in _availableNodes) {
-          final isMatch = node.signs.any((sign) => text.contains(sign.toUpperCase())) ||
+          final isMatch = node.signs.any((s) => text.contains(s.toUpperCase())) ||
               text.contains(node.label.toUpperCase()) ||
               text.contains(node.id.toUpperCase());
 
@@ -154,10 +176,7 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
               });
             }
 
-            // Speak landmark confirmation
             _tts.speak('Sign detected: ${node.label}.');
-
-            // If sign matches next destination landmark, advance or re-anchor
             _handleAnchorSignMatched(node);
             break;
           }
@@ -171,40 +190,46 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
   }
 
   void _handleAnchorSignMatched(NavNode matchedNode) {
-    // Check if sign matches our arrival destination
-    if (matchedNode.label.toLowerCase().contains(_selectedDestination.toLowerCase()) ||
-        matchedNode.id.toLowerCase().contains(_selectedDestination.toLowerCase())) {
-      _tts.speakUrgent('You have arrived at your destination: ${matchedNode.label}');
-      _ble.sendCommand('S'); // Send stop haptic pulse
+    if (_activeRoute != null && _currentStepIndex < _activeRoute!.steps.length) {
+      final currentExpectedNode = _activeRoute!.steps[_currentStepIndex].toNode;
+
+      if (matchedNode.id == currentExpectedNode) {
+        _nextStep();
+        return;
+      }
     }
+
+    setState(() {
+      _currentStartAnchor = matchedNode.id;
+    });
+    _fetchRoute();
   }
 
   InputImage? _inputImageFromCameraImage(CameraImage image) {
     if (_cameraController == null) return null;
+
     final camera = _cameraController!.description;
     final sensorOrientation = camera.sensorOrientation;
+    InputImageRotation? rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
+    if (rotation == null) return null;
 
-    final bytes = _concatenatePlanes(image.planes);
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null || format != InputImageFormat.nv21) return null;
+
+    if (image.planes.isEmpty) return null;
+    final plane = image.planes.first;
+
     return InputImage.fromBytes(
-      bytes: bytes,
+      bytes: plane.bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: InputImageRotationValue.fromRawValue(sensorOrientation) ?? InputImageRotation.rotation0deg,
-        format: InputImageFormatValue.fromRawValue(image.format.raw) ?? InputImageFormat.nv21,
-        bytesPerRow: image.planes[0].bytesPerRow,
+        rotation: rotation,
+        format: format,
+        bytesPerRow: plane.bytesPerRow,
       ),
     );
   }
 
-  Uint8List _concatenatePlanes(List<Plane> planes) {
-    final WriteBuffer allBytes = WriteBuffer();
-    for (final Plane plane in planes) {
-      allBytes.putUint8List(plane.bytes);
-    }
-    return allBytes.done().buffer.asUint8List();
-  }
-
-  /// Queries the FastAPI backend router for an accessible path
   Future<void> _fetchRoute() async {
     setState(() {
       _isLoadingRoute = true;
@@ -231,7 +256,6 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
           _isLoadingRoute = false;
         });
 
-        // Announce first navigation directive
         if (route.steps.isNotEmpty) {
           final firstStep = route.steps[0];
           _tts.speak(firstStep.instruction);
@@ -245,7 +269,7 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Route calculation error: $e'),
+            content: Text('Route calculation: $e'),
             backgroundColor: const Color(0xFFDC2626),
           ),
         );
@@ -260,9 +284,9 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
       _currentStepIndex++;
     });
 
-    final step = _activeRoute!.steps[_currentStepIndex];
-    _tts.speak(step.instruction);
-    _ble.sendCommand(step.bleCommand);
+    final currentStep = _activeRoute!.steps[_currentStepIndex];
+    _tts.speak(currentStep.instruction);
+    _ble.sendCommand(currentStep.bleCommand);
   }
 
   void _previousStep() {
@@ -272,16 +296,97 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
       _currentStepIndex--;
     });
 
-    final step = _activeRoute!.steps[_currentStepIndex];
-    _tts.speak(step.instruction);
-    _ble.sendCommand(step.bleCommand);
+    final currentStep = _activeRoute!.steps[_currentStepIndex];
+    _tts.speak(currentStep.instruction);
+    _ble.sendCommand(currentStep.bleCommand);
   }
 
   void _repeatAudio() {
-    if (_activeRoute != null && _activeRoute!.steps.isNotEmpty) {
-      final step = _activeRoute!.steps[_currentStepIndex];
-      _tts.speak(step.instruction);
-    }
+    if (_activeRoute == null || _currentStepIndex >= _activeRoute!.steps.length) return;
+    final currentStep = _activeRoute!.steps[_currentStepIndex];
+    _tts.speak(currentStep.instruction);
+    _ble.sendCommand(currentStep.bleCommand);
+  }
+
+  void _showServerConfigDialog() {
+    final controller = TextEditingController(text: ApiService.baseUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155)),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_sync_rounded, color: Color(0xFF38BDF8)),
+            SizedBox(width: 10),
+            Text('Server Connection', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Backend API URL:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFF0F172A),
+                hintText: 'https://navia-ritk.onrender.com',
+                hintStyle: const TextStyle(color: Color(0xFF475569)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  _isServerOnline ? Icons.check_circle_rounded : Icons.error_rounded,
+                  color: _isServerOnline ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _isServerOnline ? 'Live Render Server Connected' : 'Server Offline (Using Fallback)',
+                  style: TextStyle(
+                    color: _isServerOnline ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF38BDF8),
+              foregroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              ApiService.setBaseUrl(controller.text.trim());
+              Navigator.of(ctx).pop();
+              await _checkServerStatus();
+              await _loadDestinationNodes();
+              _fetchRoute();
+            },
+            child: const Text('Save & Reconnect', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -290,45 +395,25 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
     _cameraController?.dispose();
     _textRecognizer.close();
     _hazardSubscription?.cancel();
+    _tts.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final step = (_activeRoute != null && _activeRoute!.steps.isNotEmpty)
+    final step = (_activeRoute != null && _currentStepIndex < _activeRoute!.steps.length)
         ? _activeRoute!.steps[_currentStepIndex]
         : null;
 
+    final destinationList = _availableNodes.isNotEmpty
+        ? _availableNodes.map((n) => n.label).toSet().toList()
+        : ['Room 214', 'Room 101', 'Room 102', 'Room 201', 'Restroom'];
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: const Text('NAVIA Indoor Guidance', style: TextStyle(fontWeight: FontWeight.w800)),
-        backgroundColor: const Color(0xFF1E293B),
-        elevation: 0,
-        actions: [
-          // Wearable setup button with connection indicator
-          ValueListenableBuilder<bool>(
-            valueListenable: _ble.isConnectedNotifier,
-            builder: (context, connected, _) {
-              return IconButton(
-                icon: Icon(
-                  connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-                  color: connected ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
-                ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const BleSetupScreen()),
-                  );
-                },
-                tooltip: 'Wearable Haptic Setup',
-              );
-            },
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFF0B0F19),
       body: Stack(
         children: [
-          // Background Camera Stream or Simulated Hallway Feed
+          // Background Camera Feed or Hallway Vision Surface
           if (_isCameraReady && _cameraController != null)
             Positioned.fill(
               child: AspectRatio(
@@ -339,23 +424,35 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
           else
             Positioned.fill(
               child: Container(
-                color: const Color(0xFF090D16),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0B0F19), Color(0xFF1E293B)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.videocam_off_outlined, color: Color(0xFF475569), size: 48),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Live OCR Sign Recognition Active',
-                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF38BDF8).withOpacity(0.1),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.3)),
+                        ),
+                        child: const Icon(Icons.center_focus_strong_rounded, color: Color(0xFF38BDF8), size: 40),
                       ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => _handleSimulatedSignDetect('Room 214'),
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text('Simulate OCR "Room 214"'),
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF334155)),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Live OCR Visual Navigation',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Align hallway signs inside viewfinder to auto-anchor',
+                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                       ),
                     ],
                   ),
@@ -371,71 +468,172 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
             ),
           ),
 
-          // Top Quick Settings Bar (Destination & Wheelchair Toggle)
+          // Top Floating Navigation Bar
           Positioned(
-            top: 12,
+            top: MediaQuery.of(context).padding.top + 10,
             left: 16,
             right: 16,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B).withOpacity(0.92),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF334155)),
+                color: const Color(0xFF1E293B).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF334155), width: 1.2),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 16, offset: const Offset(0, 6)),
+                ],
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  const Icon(Icons.place_rounded, color: Color(0xFF38BDF8), size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedDestination,
-                        dropdownColor: const Color(0xFF1E293B),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                        isDense: true,
-                        items: const [
-                          DropdownMenuItem(value: 'Room 214', child: Text('Room 214 (Radiology)')),
-                          DropdownMenuItem(value: 'Room 101', child: Text('Room 101 (Registration)')),
-                          DropdownMenuItem(value: 'Room 102', child: Text('Room 102 (Pharmacy)')),
-                          DropdownMenuItem(value: 'Room 201', child: Text('Room 201 (Cardiology)')),
-                          DropdownMenuItem(value: 'Restroom', child: Text('Restroom L1')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedDestination = val;
-                            });
-                            _fetchRoute();
-                          }
+                  Row(
+                    children: [
+                      // Destination Icon
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF38BDF8).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.directions_rounded, color: Color(0xFF38BDF8), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Destination Dropdown
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: destinationList.contains(_selectedDestination) ? _selectedDestination : destinationList.first,
+                            dropdownColor: const Color(0xFF1E293B),
+                            icon: const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF38BDF8)),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            isDense: true,
+                            items: destinationList.map((room) {
+                              return DropdownMenuItem<String>(
+                                value: room,
+                                child: Text(room, overflow: TextOverflow.ellipsis),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedDestination = val;
+                                });
+                                _fetchRoute();
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+
+                      // Wheelchair Mode Toggle
+                      IconButton(
+                        icon: Icon(
+                          Icons.accessible_forward_rounded,
+                          color: _isWheelchairUser ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                          size: 24,
+                        ),
+                        tooltip: 'Wheelchair / Avoid Stairs',
+                        onPressed: () {
+                          setState(() {
+                            _isWheelchairUser = !_isWheelchairUser;
+                          });
+                          _tts.speak(_isWheelchairUser ? 'Wheelchair mode: Avoiding stairs.' : 'Wheelchair mode off.');
+                          _fetchRoute();
                         },
                       ),
-                    ),
+
+                      // Server Connection Setup Modal
+                      IconButton(
+                        icon: Icon(
+                          _isServerOnline ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                          color: _isServerOnline ? const Color(0xFF38BDF8) : const Color(0xFFF43F5E),
+                          size: 22,
+                        ),
+                        tooltip: 'Server Connection',
+                        onPressed: _showServerConfigDialog,
+                      ),
+
+                      // Wearable BLE Pairing
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _ble.isConnectedNotifier,
+                        builder: (context, connected, _) {
+                          return IconButton(
+                            icon: Icon(
+                              connected ? Icons.bluetooth_connected_rounded : Icons.bluetooth_disabled_rounded,
+                              color: connected ? const Color(0xFF10B981) : const Color(0xFFF43F5E),
+                              size: 22,
+                            ),
+                            tooltip: 'BLE Wearable Setup',
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const BleSetupScreen()),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
                   ),
 
-                  // Wheelchair Accessibility Mode Toggle
-                  IconButton(
-                    icon: Icon(
-                      Icons.accessible_forward,
-                      color: _isWheelchairUser ? const Color(0xFF10B981) : const Color(0xFF64748B),
-                    ),
-                    tooltip: 'Wheelchair / Elevator Mode',
-                    onPressed: () {
-                      setState(() {
-                        _isWheelchairUser = !_isWheelchairUser;
-                      });
-                      _tts.speak(_isWheelchairUser ? 'Wheelchair mode enabled: Avoiding stairs.' : 'Wheelchair mode disabled.');
-                      _fetchRoute();
-                    },
+                  // Status Indicator Row (Live Server + In-App Update Trigger)
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isServerOnline ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isServerOnline ? 'Cloud Backend (Live)' : 'Offline Local Fallback',
+                            style: TextStyle(
+                              color: _isServerOnline ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: () async {
+                          final rel = await UpdateService.checkForUpdate();
+                          if (rel != null && mounted) {
+                            UpdateService.showUpdateDialog(context, rel, isManual: true);
+                          } else if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('NAVIA is up to date! (v1.0.0)'),
+                                backgroundColor: Color(0xFF10B981),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Row(
+                          children: [
+                            Icon(Icons.system_update_rounded, size: 13, color: Color(0xFF38BDF8)),
+                            SizedBox(width: 4),
+                            Text('Check Updates', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
 
-          // Bottom Turn HUD
+          // Bottom Turn Direction HUD
           Positioned(
-            bottom: 12,
+            bottom: 16,
             left: 0,
             right: 0,
             child: ValueListenableBuilder<String?>(
@@ -476,13 +674,5 @@ class _NavigationScreenState extends State<NavigationScreen> with WidgetsBinding
         ],
       ),
     );
-  }
-
-  void _handleSimulatedSignDetect(String sign) {
-    setState(() {
-      _detectedAnchorSign = sign;
-    });
-    _tts.speak('Anchored to detected sign: $sign');
-    _handleAnchorSignMatched(NavNode(id: 'L2_ROOM_214', label: 'Room 214', floor: 2, x: 20, y: 8, type: 'room'));
   }
 }
